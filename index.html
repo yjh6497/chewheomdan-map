@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>체험단 지도</title>
+<style>
+:root{--bg:#fff;--fg:#1c1c1e;--mut:#6b7280;--line:#e5e7eb;--pri:#03c75a}
+@media(prefers-color-scheme:dark){:root{--bg:#18181b;--fg:#f4f4f5;--mut:#a1a1aa;--line:#3f3f46}}
+*{box-sizing:border-box}html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--fg);font:14px/1.4 -apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;display:flex;flex-direction:column}
+#bar{padding:8px 12px;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:6px}
+.row{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.chip{border:1px solid var(--line);background:none;color:var(--fg);border-radius:99px;padding:3px 10px;font:inherit;cursor:pointer}
+.chip.on{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.chip i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px}
+#info{color:var(--mut);font-size:12px}
+#map{flex:1;min-height:0}
+#key{position:absolute;inset:0;background:var(--bg);display:none;align-items:center;justify-content:center;padding:20px;z-index:9}
+#key div{max-width:420px}#key input{width:100%;padding:8px;margin:8px 0;font:inherit;border:1px solid var(--line);border-radius:6px;background:none;color:var(--fg)}
+#key button{padding:8px 14px;border:0;border-radius:6px;background:var(--pri);color:#fff;font:inherit;cursor:pointer}
+.iw{padding:10px 12px;max-width:240px;font-size:13px;color:#1c1c1e}.iw b{font-size:14px}.iw a{color:#0a58ca}
+.pin{width:14px;height:14px;border-radius:50%;border:2px solid #fff;box-shadow:0 1px 4px #0006}
+</style></head><body>
+<div id="bar">
+<div class="row" id="rg"></div><div class="row" id="gp"></div><div class="row" id="stt"></div>
+<div id="info"></div>
+</div>
+<div id="map"></div>
+<div id="key"><div>
+<h3>네이버 지도 Client ID가 필요해요</h3>
+<p>네이버 클라우드 플랫폼 → Maps → Application 등록(Dynamic Map)에서 발급받은 Client ID를 붙여 넣으세요. 웹 서비스 URL에는 이 페이지 주소를 등록해야 해요. 이 브라우저에만 저장돼요.</p>
+<input id="kin" placeholder="Client ID"><button id="kok">저장하고 지도 열기</button>
+</div></div>
+<script>
+const NCP_KEY=''; // 여기에 직접 넣어도 되고, 비워 두면 처음 열 때 입력창이 떠요
+const COL={식당:'#E8590C',카페:'#8B5E34',숙소:'#2F6FED',뷰티:'#D6409F',안경:'#0E9F8E',기타:'#6b7280'};
+const GRPS=Object.keys(COL), STN={new:'신규',applied:'신청중',selected:'선정',visited:'방문함'};
+const $=s=>document.querySelector(s), esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const st={rg:new Set(),gp:new Set(GRPS.filter(g=>g!=='뷰티')),stt:new Set(['new','applied','selected','visited'])};
+let all=[],map,iw,markers=[];
+function today(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
+function regOf(i){let r=(i.r||'').split(' ').pop()||'기타';return r.length>2&&/[시군]$/.test(r)?r.slice(0,-1):r}
+function chips(){
+const rgs=[...new Set(all.map(regOf))].sort((a,b)=>all.filter(x=>regOf(x)===b).length-all.filter(x=>regOf(x)===a).length);
+if(!st.rg.size) st.rg.add(rgs.includes('춘천')?'춘천':rgs[0]);
+$('#rg').innerHTML=rgs.map(r=>`<button class="chip ${st.rg.has(r)?'on':''}" data-k="rg" data-v="${esc(r)}">${esc(r)}</button>`).join('');
+$('#gp').innerHTML=GRPS.map(g=>`<button class="chip ${st.gp.has(g)?'on':''}" data-k="gp" data-v="${g}"><i style="background:${COL[g]}"></i>${g}</button>`).join('');
+$('#stt').innerHTML=Object.entries(STN).map(([k,v])=>`<button class="chip ${st.stt.has(k)?'on':''}" data-k="stt" data-v="${k}">${v}</button>`).join('');
+}
+function draw(){
+markers.forEach(m=>m.setMap(null));markers=[];
+const list=all.filter(i=>st.rg.has(regOf(i))&&st.gp.has(i.g)&&st.stt.has(i.st));
+const b=new naver.maps.LatLngBounds();
+list.forEach(i=>{
+const p=new naver.maps.LatLng(i.lat,i.lng);b.extend(p);
+const m=new naver.maps.Marker({position:p,map,title:i.t,icon:{content:`<div class="pin" style="background:${COL[i.g]}"></div>`,anchor:new naver.maps.Point(7,7)}});
+naver.maps.Event.addListener(m,'click',()=>{
+iw.setContent(`<div class="iw"><b>${esc(i.t)}</b><br>${esc(i.s)} · ${esc(STN[i.st]||i.st)} · ${esc(i.g)}<br>${i.o?esc(i.o)+'<br>':''}${i.v?'체험 가능: '+esc(i.v)+'<br>':''}${i.ad?'신청 마감 '+esc(i.ad)+'<br>':''}${i.rd?'제출 마감 '+esc(i.rd)+'<br>':''}${esc(i.a||'')}${i.l?`<br><a href="${esc(i.l)}" target="_blank" rel="noopener">상세 보기</a>`:''}</div>`);
+iw.open(map,m)});
+markers.push(m)});
+$('#info').textContent=`${list.length}곳 표시 · 데이터 갱신 ${all.updated||''}`;
+if(list.length)map.fitBounds(b,{top:40,right:40,bottom:40,left:40});
+}
+document.addEventListener('click',e=>{
+const t=e.target.closest('.chip');if(!t||!map)return;
+const s=st[t.dataset.k],v=t.dataset.v;
+if(t.dataset.k==='rg'){s.clear();s.add(v)}else s.has(v)?s.delete(v):s.add(v);
+chips();draw();
+});
+async function boot(key){
+$('#key').style.display='none';
+const r=await loadData();
+all=r.items.filter(i=>st_ok(i));all.updated=r.updated;
+window.navermap_authFailure=()=>{try{localStorage.removeItem('ncp')}catch(_){}; $('#key').style.display='flex'; $('#key h3').textContent='인증 실패: Client ID나 등록한 웹 서비스 URL을 확인하세요'};
+await new Promise((ok,no)=>{const s=document.createElement('script');s.src='https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId='+encodeURIComponent(key);s.onload=ok;s.onerror=no;document.head.appendChild(s)});
+map=new naver.maps.Map('map',{center:new naver.maps.LatLng(37.88,127.73),zoom:11,mapTypeControl:true,mapTypeControlOptions:{style:naver.maps.MapTypeControlStyle.BUTTON,position:naver.maps.Position.TOP_RIGHT}});
+iw=new naver.maps.InfoWindow({borderWidth:0,backgroundColor:'#fff',disableAnchor:false});
+chips();draw();
+}
+async function loadData(){
+const m=location.hash.match(/[#&]d=([^&]+)/);
+if(!m) throw new Error('nodata');
+const b64=m[1].replace(/-/g,'+').replace(/_/g,'/');
+const bin=Uint8Array.from(atob(b64),c=>c.charCodeAt(0));
+const txt=await new Response(new Blob([bin]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).text();
+return JSON.parse(txt);
+}
+function st_ok(i){return !(i.st==='new'&&i.ad&&i.ad<today())}
+let k=NCP_KEY;try{k=k||localStorage.getItem('ncp')||''}catch(_){}
+if(k)boot(k).catch(e=>{$('#info').textContent=e.message==='nodata'?'체험단 매니저의 지도 버튼으로 열어 주세요. 목록은 그 버튼이 주소에 담아 보내요.':'불러오지 못했어요. 체험단 매니저에서 다시 열어 주세요.'});
+else{$('#key').style.display='flex';$('#kok').onclick=()=>{const v=$('#kin').value.trim();if(!v)return;try{localStorage.setItem('ncp',v)}catch(_){}boot(v).catch(()=>{$('#info').textContent='체험단 매니저의 지도 버튼으로 열어 주세요.'})}}
+</script></body></html>
