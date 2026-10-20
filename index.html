@@ -71,7 +71,7 @@ $('#key').style.display='none';
 const r=await loadData();
 all=r.items.filter(i=>st_ok(i));all.updated=r.updated;
 window.navermap_authFailure=()=>{try{localStorage.removeItem('ncp')}catch(_){}; $('#key').style.display='flex'; $('#key h3').textContent='인증 실패: Client ID나 등록한 웹 서비스 URL을 확인하세요'};
-await new Promise((ok,no)=>{const s=document.createElement('script');s.src='https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId='+encodeURIComponent(key);s.onload=ok;s.onerror=no;document.head.appendChild(s)});
+await new Promise((ok,no)=>{const s=document.createElement('script');s.src='https://oapi.map.naver.com/openapi/v3/maps.js?ncpClientId='+encodeURIComponent(key);s.onload=ok;s.onerror=no;document.head.appendChild(s)});
 map=new naver.maps.Map('map',{center:new naver.maps.LatLng(37.88,127.73),zoom:11,mapTypeControl:true,mapTypeControlOptions:{style:naver.maps.MapTypeControlStyle.BUTTON,position:naver.maps.Position.TOP_RIGHT}});
 iw=new naver.maps.InfoWindow({borderWidth:0,backgroundColor:'#fff',disableAnchor:false});
 chips();draw();
